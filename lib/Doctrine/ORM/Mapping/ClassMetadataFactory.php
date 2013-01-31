@@ -28,6 +28,7 @@ use Doctrine\Common\Persistence\Mapping\ReflectionService;
 use Doctrine\Common\Persistence\Mapping\ClassMetadata as ClassMetadataInterface;
 use Doctrine\Common\Persistence\Mapping\AbstractClassMetadataFactory;
 use Doctrine\ORM\Id\IdentityGenerator;
+use Doctrine\ORM\Id\BigIntegerIdentityGenerator;
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 
 /**
@@ -173,8 +174,11 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
     /**
      * Validate runtime metadata is correctly defined.
      *
-     * @param ClassMetadata $class
-     * @param $parent
+     * @param ClassMetadata               $class
+     * @param ClassMetadataInterface|null $parent
+     *
+     * @return void
+     *
      * @throws MappingException
      */
     protected function validateRuntimeMetadata($class, $parent)
@@ -226,6 +230,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      * each class as key.
      *
      * @param \Doctrine\ORM\Mapping\ClassMetadata $class
+     *
      * @throws MappingException
      */
     private function addDefaultDiscriminatorMap(ClassMetadata $class)
@@ -255,9 +260,10 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
     }
 
     /**
-     * Get the lower-case short name of a class.
+     * Gets the lower-case short name of a class.
      *
      * @param string $className
+     *
      * @return string
      */
     private function getShortName($className)
@@ -275,6 +281,8 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      *
      * @param \Doctrine\ORM\Mapping\ClassMetadata $subClass
      * @param \Doctrine\ORM\Mapping\ClassMetadata $parentClass
+     *
+     * @return void
      */
     private function addInheritedFields(ClassMetadata $subClass, ClassMetadata $parentClass)
     {
@@ -297,6 +305,9 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      *
      * @param \Doctrine\ORM\Mapping\ClassMetadata $subClass
      * @param \Doctrine\ORM\Mapping\ClassMetadata $parentClass
+     *
+     * @return void
+     *
      * @throws MappingException
      */
     private function addInheritedRelations(ClassMetadata $subClass, ClassMetadata $parentClass)
@@ -324,8 +335,11 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      * Adds inherited named queries to the subclass mapping.
      *
      * @since 2.2
+     *
      * @param \Doctrine\ORM\Mapping\ClassMetadata $subClass
      * @param \Doctrine\ORM\Mapping\ClassMetadata $parentClass
+     *
+     * @return void
      */
     private function addInheritedNamedQueries(ClassMetadata $subClass, ClassMetadata $parentClass)
     {
@@ -343,8 +357,11 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      * Adds inherited named native queries to the subclass mapping.
      *
      * @since 2.3
+     *
      * @param \Doctrine\ORM\Mapping\ClassMetadata $subClass
      * @param \Doctrine\ORM\Mapping\ClassMetadata $parentClass
+     *
+     * @return void
      */
     private function addInheritedNamedNativeQueries(ClassMetadata $subClass, ClassMetadata $parentClass)
     {
@@ -365,8 +382,11 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      * Adds inherited sql result set mappings to the subclass mapping.
      *
      * @since 2.3
+     *
      * @param \Doctrine\ORM\Mapping\ClassMetadata $subClass
      * @param \Doctrine\ORM\Mapping\ClassMetadata $parentClass
+     *
+     * @return void
      */
     private function addInheritedSqlResultSetMappings(ClassMetadata $subClass, ClassMetadata $parentClass)
     {
@@ -396,6 +416,9 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      * most appropriate for the targeted database platform.
      *
      * @param ClassMetadataInfo $class
+     *
+     * @return void
+     *
      * @throws ORMException
      */
     private function completeIdGeneratorMapping(ClassMetadataInfo $class)
@@ -418,9 +441,9 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
                 // <table>_<column>_seq in PostgreSQL for SERIAL columns.
                 // Not pretty but necessary and the simplest solution that currently works.
                 $sequenceName = null;
+                $fieldName    = $class->identifier ? $class->getSingleIdentifierFieldName() : null;
 
                 if ($this->targetPlatform instanceof Platforms\PostgreSQLPlatform) {
-                    $fieldName      = $class->getSingleIdentifierFieldName();
                     $columnName     = $class->getSingleIdentifierColumnName();
                     $quoted         = isset($class->fieldMappings[$fieldName]['quoted']) || isset($class->table['quoted']);
                     $sequenceName   = $class->getTableName() . '_' . $columnName . '_seq';
@@ -435,7 +458,12 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
                     $sequenceName = $this->em->getConfiguration()->getQuoteStrategy()->getSequenceName($definition, $class, $this->targetPlatform);
                 }
 
-                $class->setIdGenerator(new \Doctrine\ORM\Id\IdentityGenerator($sequenceName));
+                $generator = ($fieldName && $class->fieldMappings[$fieldName]['type'] === "bigint")
+                    ? new BigIntegerIdentityGenerator($sequenceName)
+                    : new IdentityGenerator($sequenceName);
+
+                $class->setIdGenerator($generator);
+
                 break;
 
             case ClassMetadata::GENERATOR_TYPE_SEQUENCE:
